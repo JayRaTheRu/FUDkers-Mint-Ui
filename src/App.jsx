@@ -19,7 +19,6 @@ import {
 } from "@metaplex-foundation/mpl-core-candy-machine";
 import { walletAdapterIdentity } from "@metaplex-foundation/umi-signer-wallet-adapters";
 
-// 🔁 On-chain config
 import {
   RPC_ENDPOINT,
   CANDY_MACHINE_ID,
@@ -28,31 +27,21 @@ import {
   NETWORK_LABEL,
 } from "./chainConfig.js";
 
-// 🔌 Small helper import (we still have Test Tx button for now)
-import { Connection, SystemProgram, Transaction } from "@solana/web3.js";
+import {
+  Connection,
+  SystemProgram,
+  Transaction,
+  PublicKey,
+} from "@solana/web3.js";
 
 import bg from "./assets/bg.png";
 import logo from "./assets/logo.png";
 import showcase from "./assets/fudkers-showcase.gif";
 import pack from "./assets/pack.png";
+import jayra from "./assets/jayra.png";
 
-// Helper: normalize itemsAvailable/itemsRedeemed which might be number, bigint or BN-ish
-function normalizeCount(value) {
-  if (value === null || value === undefined) return null;
-
-  if (typeof value === "number") return value;
-
-  if (typeof value === "bigint") {
-    return Number(value);
-  }
-
-  if (typeof value === "object" && typeof value.toString === "function") {
-    const n = Number(value.toString());
-    if (!Number.isNaN(n)) return n;
-  }
-
-  return null;
-}
+// 👉 Creator tip wallet (devnet/mainnet-safe; you control this)
+const CREATOR_TIP_ADDRESS = "6WbBX58cHCcuhR6BPpCDXm5eRULuxwxes7jwEodTWtHc";
 
 function App() {
   const wallet = useWallet();
@@ -63,18 +52,10 @@ function App() {
   const [lastMintSig, setLastMintSig] = useState(null); // tx signature
   const [error, setError] = useState(null);
   const [supplyText, setSupplyText] = useState("Loading...");
+  const [sessionMints, setSessionMints] = useState(0); // “Holding” for this session only
 
   console.log("FUDKERS MINT | Network:", NETWORK_LABEL, "| RPC:", RPC_ENDPOINT);
   console.log("CM:", CANDY_MACHINE_ID, "Guard:", CANDY_GUARD_ID);
-
-  // Keep the status line in sync with wallet connection
-  useEffect(() => {
-    if (wallet.connected) {
-      setStatus("Wallet connected — ready to mint.");
-    } else {
-      setStatus("Wallet not connected.");
-    }
-  }, [wallet.connected]);
 
   // Umi instance bound to wallet + current RPC endpoint
   const umi = useMemo(() => {
@@ -87,31 +68,37 @@ function App() {
     return instance;
   }, [wallet, RPC_ENDPOINT]);
 
-  // Load CM supply / stats (with safe fallback, so no "undefined" in UI)
+  // Helper to coerce BN / bigint / number to plain number
+  const toNum = (value) => {
+    if (value == null) return null;
+    if (typeof value === "number") return value;
+    if (typeof value === "bigint") return Number(value);
+    if (typeof value.toNumber === "function") return value.toNumber();
+    return null;
+  };
+
+  // Load CM supply / stats
   async function loadCandyMachineStats() {
     try {
       const cm = await fetchCandyMachine(umi, publicKey(CANDY_MACHINE_ID));
       console.log("Candy Machine account:", cm);
 
-      const rawAvailable =
+      const itemsAvailableRaw =
         cm.itemsAvailable ??
         cm.data?.itemsAvailable ??
         cm.config?.itemsAvailable ??
         null;
 
-      const rawRedeemed =
+      const itemsRedeemedRaw =
         cm.itemsRedeemed ??
         cm.data?.itemsRedeemed ??
         cm.config?.itemsRedeemed ??
         null;
 
-      const itemsAvailable = normalizeCount(rawAvailable);
-      const itemsRedeemed = normalizeCount(rawRedeemed);
+      const itemsAvailable = toNum(itemsAvailableRaw);
+      const itemsRedeemed = toNum(itemsRedeemedRaw);
 
-      if (
-        typeof itemsAvailable === "number" &&
-        typeof itemsRedeemed === "number"
-      ) {
+      if (itemsAvailable != null && itemsRedeemed != null) {
         setSupplyText(`${itemsRedeemed} / ${itemsAvailable} minted`);
       } else {
         setSupplyText("Live on devnet — supply display WIP");
@@ -192,8 +179,8 @@ function App() {
 
       setStatus("Sending transaction…");
 
-      // 6. Call mintV1 and capture the *signature* in a string-safe way
-      const umiResult = await mintV1(umi, {
+      // 6. Call mintV1 and capture the *signature*
+      const txSig = await mintV1(umi, {
         candyMachine: candyMachine.publicKey,
         collection: candyMachine.collectionMint ?? publicKey(COLLECTION_MINT_ID),
         asset,
@@ -202,28 +189,12 @@ function App() {
         ...(MINT_GROUP ? { group: MINT_GROUP } : {}),
       }).sendAndConfirm(umi);
 
-      console.log("Mint result from umi:", umiResult);
-
-      let sigStr = null;
-      if (typeof umiResult === "string") {
-        sigStr = umiResult;
-      } else if (
-        typeof umiResult === "object" &&
-        umiResult !== null &&
-        "signature" in umiResult
-      ) {
-        sigStr = umiResult.signature;
-      } else {
-        // last resort: stringify
-        sigStr = String(umiResult);
-      }
-
-      console.log("Mint tx signature (normalized):", sigStr);
-
+      console.log("Mint tx signature:", txSig);
       const mintAddress = String(asset.publicKey);
 
       setLastMint(mintAddress);
-      setLastMintSig(sigStr);
+      setLastMintSig(String(txSig));
+      setSessionMints((prev) => prev + 1); // just this tab/session
       setStatus("Mint success.");
       loadCandyMachineStats();
     } catch (e) {
@@ -242,17 +213,22 @@ function App() {
     }
   }
 
-  // 🧪 Test helper – devnet only. On mainnet, we can turn this into a TIP button.
-  async function handleTestTx() {
+  // 💸 Creator Tip button – sends SOL to CREATOR_TIP_ADDRESS
+  async function handleCreatorTip() {
     setError(null);
 
     if (!wallet || !wallet.connected || !wallet.publicKey) {
-      setStatus("Connect your Phantom wallet first (for test tx).");
+      setStatus("Connect your Phantom wallet first.");
+      return;
+    }
+
+    if (!CREATOR_TIP_ADDRESS) {
+      setError("Creator tip address not configured yet.");
       return;
     }
 
     try {
-      setStatus("Building test transaction…");
+      setStatus("Building creator tip…");
 
       const connection = new Connection(RPC_ENDPOINT, {
         commitment: "confirmed",
@@ -266,22 +242,20 @@ function App() {
       }).add(
         SystemProgram.transfer({
           fromPubkey: wallet.publicKey,
-          toPubkey: wallet.publicKey, // send to self
-          lamports: 1, // 1 lamport = smallest non-zero
+          toPubkey: new PublicKey(CREATOR_TIP_ADDRESS),
+          lamports: 1000000, // 0.001 SOL tip on devnet (tweak on mainnet)
         })
       );
 
-      console.log("Test tx (before send):", tx);
-
       const sig = await wallet.sendTransaction(tx, connection);
-      console.log("Test tx signature:", sig);
+      console.log("Creator tip tx signature:", sig);
 
-      setStatus("Test tx sent: " + sig);
+      setStatus("Creator tip sent: " + sig);
     } catch (e) {
-      console.error("Test tx error RAW:", e);
-      console.error("Test tx error cause:", e?.cause);
-      setStatus("Test tx failed.");
-      setError(e?.message || "Test tx error");
+      console.error("Creator tip error RAW:", e);
+      console.error("Creator tip error cause:", e?.cause);
+      setStatus("Creator tip failed.");
+      setError(e?.message || "Creator tip error");
     }
   }
 
@@ -303,7 +277,7 @@ function App() {
             <img
               src={logo}
               alt="Neighborhood FUDkers"
-              style={{ height: 56, width: "auto" }}
+              className="mint-logo-img"
             />
             <div>
               <div className="mint-tagline">
@@ -315,11 +289,21 @@ function App() {
             </div>
           </div>
 
+          {/* New brand copy */}
           <p className="mint-copy">
-            51 one-of-one boom-bap misfits from the Neighborhood. No
-            moon-lambo fantasies. No gatekeeping. Just raw IP you can flip,
-            sample, print, or press to vinyl. The token is the ticket –
-            proof you were here when the block was still underground.
+            These 51 FUDkers are a truth-seeking brand built on Fortitude,
+            Understanding, and Determination—three pillars that turn fear,
+            uncertainty, and doubt into unbreakable strength.
+          </p>
+          <p className="mint-copy secondary">
+            Rooted in underground hip-hop, street wisdom, and raw creative
+            expression, we’re digital-age misfits who expose illusions, speak
+            unfiltered truth, and build real community… block by block, beat by
+            beat. IP you can flip, sample, print, or press to vinyl.
+          </p>
+          <p className="mint-copy secondary">
+            The token is the ticket… proof you were here while the block was
+            still underground. Close your two eyes, open your 3rd 👁️
           </p>
 
           <div className="mint-pill-row">
@@ -339,6 +323,12 @@ function App() {
                 {shortAddress || "Not connected"}
               </div>
             </div>
+            <div className="mint-stat">
+              <div className="mint-stat-label">Holding (this session)</div>
+              <div className="mint-stat-value">
+                {wallet.connected ? sessionMints : "—"}
+              </div>
+            </div>
           </div>
 
           <div className="mint-status">
@@ -354,33 +344,41 @@ function App() {
           </div>
 
           <div className="mint-footer">
-            FUD or fold. Kick it in the Neighborhood, or stay in the matrix.
+            Come kick it in the Neighborhood, FUDkers...
           </div>
         </div>
 
-        {/* RIGHT SIDE – Wallet + Mint Pack */}
+        {/* RIGHT SIDE – Wallet + Pack + Creator Tip */}
         <div className="mint-right">
-          <div>
+          {/* Wallet card */}
+          <div className="mint-wallet-card">
             <div className="mint-wallet-row">
               <div className="mint-wallet-label">Wallet</div>
               <WalletMultiButton />
             </div>
             {error && <div className="mint-alert">{error}</div>}
+            {wallet.connected && (
+              <div className="mint-status subtle">
+                Connected as {shortAddress}
+              </div>
+            )}
           </div>
 
+          {/* Pack / Mint card */}
           <div className="mint-pack-frame">
-            <div className="mint-pack-label">
-              Pack Rip • <span>Random FUDker</span>
+            <div className="mint-pack-header">
+              <div className="mint-pack-label">
+                Pack Rip • <span>Random FUDker</span>
+              </div>
+              <div className="mint-pack-subtext">
+                Rip a 1-of-1 misfit straight from the Neighborhood Candy
+                Machine.
+              </div>
             </div>
             <img
               src={pack}
               alt="FUDkers Pack"
-              style={{
-                width: 220,
-                maxWidth: "70%",
-                height: "auto",
-                objectFit: "contain",
-              }}
+              className="mint-pack-img"
             />
             <button
               className="mint-button-primary"
@@ -389,17 +387,6 @@ function App() {
             >
               {isMinting ? "Minting…" : "Mint a FUDker"}
             </button>
-
-            {/* Devnet-only helper button for now */}
-            <button
-              className="mint-button-primary"
-              style={{ marginTop: 8, opacity: 0.8 }}
-              disabled={!wallet.connected}
-              onClick={handleTestTx}
-            >
-              Test Wallet Tx
-            </button>
-
             {!wallet.connected && (
               <div className="mint-status" style={{ marginTop: 6 }}>
                 Connect Phantom to rip a pack.
@@ -407,9 +394,45 @@ function App() {
             )}
           </div>
 
+          {/* Creator Tip card – uses jayra.png */}
+          <div className="mint-pack-frame mint-creator-frame">
+            <div className="mint-pack-header">
+              <div className="mint-pack-label">
+                Creator Tip • <span>Support JayRa</span>
+              </div>
+              <div className="mint-pack-subtext">
+                Drop a tip if you’re feeling the beats, the truth, or just wanna
+                keep an independent artist eating while the block gets built.
+                No label. No middleman. Just love back to the source.
+              </div>
+              <a
+                href="https://x.com/FUDkerOTB"
+                target="_blank"
+                rel="noreferrer"
+                className="mint-creator-link"
+              >
+                Follow on X ↗
+              </a>
+            </div>
+            <img
+              src={jayra}
+              alt="JayRaTheRu"
+              className="mint-creator-img"
+            />
+            <button
+              className="mint-button-primary"
+              style={{ marginTop: 4 }}
+              disabled={!wallet.connected}
+              onClick={handleCreatorTip}
+            >
+              Send Creator Tip
+            </button>
+          </div>
+
+          {/* Last mint box */}
           {lastMint && (
             <div className="mint-success">
-              <div className="mint-success-heading">Latest mint</div>
+              <div className="mint-success-heading">Last Mint</div>
 
               <div className="mint-success-row">
                 <div className="mint-success-label">Asset</div>
@@ -417,17 +440,14 @@ function App() {
               </div>
 
               {lastMintSig && (
-                <div className="mint-success-row">
+                <div className="mint-success-row" style={{ marginTop: 4 }}>
                   <div className="mint-success-label">Tx</div>
                   <a
                     href={`https://explorer.solana.com/tx/${lastMintSig}?cluster=devnet`}
                     target="_blank"
                     rel="noreferrer"
                     className="mint-success-code"
-                    style={{
-                      color: "#f5a01f",
-                      textDecoration: "underline",
-                    }}
+                    style={{ color: "#f5a01f", textDecoration: "underline" }}
                   >
                     View on Solana Explorer
                   </a>
@@ -442,5 +462,3 @@ function App() {
 }
 
 export default App;
-
-

@@ -8,6 +8,16 @@
   --text: #ffffff;
 }
 
+/* 🔁 Pack hover spin keyframes */
+@keyframes fudker-pack-spin {
+  from {
+    transform: rotateY(0deg);
+  }
+  to {
+    transform: rotateY(360deg);
+  }
+}
+
 *,
 *::before,
 *::after {
@@ -91,19 +101,19 @@ button {
 }
 
 .mint-logo-img {
-  height: 56px;
+  height: 68px; /* ⬆ slightly larger logo */
   width: auto;
 }
 
 .mint-tagline {
-  font-size: 11px;
+  font-size: 12px; /* ⬆ bigger */
   text-transform: uppercase;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.22em;
   color: #aaaaaa;
 }
 
 .mint-heading {
-  font-size: 28px;
+  font-size: 32px; /* ⬆ bigger */
   font-weight: 800;
   text-transform: uppercase;
   line-height: 1.2;
@@ -157,8 +167,8 @@ button {
 }
 
 .mint-pill {
-  font-size: 11px;
-  padding: 6px 10px;
+  font-size: 12px;
+  padding: 7px 11px;
   border-radius: 999px;
   border: 1px solid var(--border);
   text-transform: uppercase;
@@ -171,23 +181,26 @@ button {
   flex-wrap: wrap;
   gap: 24px;
   margin-top: 14px;
+  justify-content: center; /* ⬅ center Mint Status / Wallet / Holding */
+  text-align: center;
 }
 
 .mint-stat {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 110px;
 }
 
 .mint-stat-label {
-  font-size: 11px;
+  font-size: 12px;
   text-transform: uppercase;
   color: #888888;
   letter-spacing: 0.08em;
 }
 
 .mint-stat-value {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
 }
 
@@ -214,7 +227,6 @@ button {
   overflow: hidden;
   border: 1px solid var(--border);
   background: #000;
-  /* Make the GIF feel like a framed TV, keep logo visible */
   padding: 16px;
   display: flex;
   align-items: center;
@@ -223,9 +235,11 @@ button {
 }
 
 .mint-showcase-img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain; /* ensures the full GIF (logo + character) is visible */
+  max-width: 80%;
+  max-height: 150%;
+  height: auto;
+  width: auto;
+  object-fit: contain;
   display: block;
 }
 
@@ -337,10 +351,9 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;   /* 👈 centers pack + buttons vertically */
   gap: 14px;
   margin-top: 18px;
-  min-height: 320px;         /* 👈 matches .mint-showcase height */
+  perspective: 1000px; /* ⬅ gives 3D feel for spin */
 }
 
 .mint-pack-header {
@@ -369,6 +382,53 @@ button {
   max-width: 80%;
   height: auto;
   object-fit: contain;
+  will-change: transform;
+  transition: transform 0.2s ease-out;
+}
+
+/* ✨ Slow 3D spin on hover */
+.mint-pack-img:hover {
+  animation: fudker-pack-spin 8s linear infinite;
+  transform-origin: center;
+}
+
+/* Creator tip frame + image (base) */
+
+.mint-creator-frame {
+  margin-top: 14px;
+}
+
+.mint-creator-img {
+  width: 230px;
+  max-width: 80%;
+  height: auto;
+  object-fit: contain;
+  border-radius: 14px;
+}
+
+/* Creator tip frame + image + link (override / extend) */
+
+.mint-creator-frame {
+  margin-top: 18px;
+}
+
+.mint-creator-img {
+  width: 230px;
+  max-width: 80%;
+  height: auto;
+  object-fit: contain;
+}
+
+.mint-creator-link {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--marigold);
+  text-decoration: none;
+}
+
+.mint-creator-link:hover {
+  text-decoration: underline;
 }
 
 /* Primary button */
