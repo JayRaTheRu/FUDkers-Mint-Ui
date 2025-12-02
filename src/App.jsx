@@ -35,6 +35,8 @@ import {
   MINT_PRICE_SOL,
 } from "./chainConfig.js";
 
+import "./App.css"; // ✅ hook up the CSS
+
 import bg from "./assets/bg.png";
 import logo from "./assets/logo.png";
 import showcase from "./assets/fudkers-showcase.gif";
@@ -475,6 +477,7 @@ function App() {
       }}
     >
       <div
+        className="app-card"
         style={{
           width: "100%",
           maxWidth: "1000px",
@@ -486,6 +489,7 @@ function App() {
       >
         {/* Header / Logo / Network */}
         <header
+          className="app-header"
           style={{
             display: "flex",
             alignItems: "center",
@@ -533,7 +537,10 @@ function App() {
             </div>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+          <div
+            className="app-header-right"
+            style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}
+          >
             <WalletMultiButton />
             <span
               style={{
@@ -580,6 +587,7 @@ function App() {
 
         {/* Main content layout */}
         <div
+          className="main-grid"
           style={{
             display: "grid",
             gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1fr)",
@@ -834,6 +842,7 @@ function App() {
 
                           return (
                             <div
+                              className="media-square"
                               style={{
                                 width: "480px",
                                 height: "480px",
@@ -1208,6 +1217,7 @@ function App() {
                         {/* Left: BIG video/image */}
                         {media && (
                           <div
+                            className="media-square"
                             style={{
                               width: "480px",
                               height: "480px",

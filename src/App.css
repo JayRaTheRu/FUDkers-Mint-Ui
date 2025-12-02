@@ -1,42 +1,123 @@
+/* Global reset-ish */
+:root {
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  background: #000;
+}
+
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  min-height: 100vh;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+/* App wrapper */
+.app-root {
+  width: 100%;
+  display: flex;
+  justify-content: center;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
+/* Main card */
+.app-card {
+  width: 100%;
+}
+
+/* Header layout */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Right side of header (wallet button + IDs) */
+.app-header-right {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-end;
+}
+
+/* Main 2-column layout */
+.main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 1.5rem;
+}
+
+/* NFT media container (video/image) */
+.media-square {
+  width: 480px !important;
+  height: 480px !important;
+  max-width: 100% !important;
+}
+
+/* ----- Mobile tweaks ----- */
+
+@media (max-width: 900px) {
+  .app-card {
+    padding: 1rem !important;
+    border-radius: 18px !important;
   }
-  to {
-    transform: rotate(360deg);
+
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .app-header-right {
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .app-header-right .wallet-adapter-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .main-grid {
+    grid-template-columns: 1fr;
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
+@media (max-width: 600px) {
+  .app-root {
+    padding: 1rem 0 !important;
   }
-}
 
-.card {
-  padding: 2em;
-}
+  .app-card {
+    padding: 0.9rem !important;
+    border-radius: 16px !important;
+  }
 
-.read-the-docs {
-  color: #888;
+  .media-square {
+    width: 100% !important;
+    height: auto !important;
+    aspect-ratio: 1 / 1;
+  }
+
+  h1 {
+    font-size: 1.25rem !important;
+  }
+
+  h2 {
+    font-size: 1.05rem !important;
+  }
+
+  p {
+    font-size: 0.9rem;
+  }
 }
