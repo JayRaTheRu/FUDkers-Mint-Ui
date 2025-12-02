@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 
+import { Connection, SystemProgram, Transaction, PublicKey } from "@solana/web3.js";
+
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
 import {
   publicKey,
@@ -158,6 +160,12 @@ function App() {
   const [walletNftDetails, setWalletNftDetails] = useState({});
   const [walletLookupLoading, setWalletLookupLoading] = useState(false);
   const [walletLookupError, setWalletLookupError] = useState(null);
+
+  // Creator tip state
+  const [tipAmountSol, setTipAmountSol] = useState("");
+  const [tipLoading, setTipLoading] = useState(false);
+  const [tipError, setTipError] = useState(null);
+  const [tipSuccess, setTipSuccess] = useState(null);
 
   // Umi client (Metaplex – TM candy machine v3 + token metadata)
   const umi = useMemo(() => {
@@ -445,6 +453,60 @@ function App() {
     }
   }
 
+  // ⭐ Creator tip handler
+  async function handleSupportJayRa() {
+    setTipError(null);
+    setTipSuccess(null);
+
+    if (!wallet?.publicKey) {
+      setTipError("Connect your wallet to send a tip.");
+      return;
+    }
+
+    const parsed = parseFloat(tipAmountSol);
+    if (isNaN(parsed) || parsed <= 0) {
+      setTipError("Enter a valid SOL amount greater than 0.");
+      return;
+    }
+
+    try {
+      setTipLoading(true);
+
+      const connection = new Connection(RPC_ENDPOINT, "confirmed");
+      const fromPubkey = wallet.publicKey;
+      const toPubkey = new PublicKey(CREATOR_WALLET);
+
+      const lamports = Math.round(parsed * 1e9);
+
+      const tx = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey,
+          toPubkey,
+          lamports,
+        })
+      );
+
+      tx.feePayer = fromPubkey;
+      const { blockhash } = await connection.getLatestBlockhash();
+      tx.recentBlockhash = blockhash;
+
+      const signature = await wallet.sendTransaction(tx, connection);
+      await connection.confirmTransaction(signature, "confirmed");
+
+      setTipSuccess(`Thank you! Tx: ${signature}`);
+      // Optional: clear amount
+      // setTipAmountSol("");
+    } catch (err) {
+      console.error("Tip transaction failed:", err);
+      setTipError(
+        (err && err.message) ||
+          "Tip transaction failed. Check wallet and try again."
+      );
+    } finally {
+      setTipLoading(false);
+    }
+  }
+
   // Helper for Solscan links
   const clusterQuery =
     ENV === "devnet" ? "?cluster=devnet" : ENV === "mainnet" ? "" : "";
@@ -626,34 +688,7 @@ function App() {
               The token is the ticket… proof you were here while the block was
               still underground. Close your two eyes, open your 3rd 👁️
             </p>
-
-            <div
-              style={{
-                display: "flex",
-                gap: "1rem",
-                marginTop: "1rem",
-                flexWrap: "wrap",
-              }}
-            >
-              <img
-                src={pack}
-                alt="Pack"
-                style={{
-                  height: "90px",
-                  borderRadius: "16px",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                }}
-              />
-              <img
-                src={jayra}
-                alt="JayRaTheRu"
-                style={{
-                  height: "90px",
-                  borderRadius: "16px",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                }}
-              />
-            </div>
+            {/* ⬆️ pack & jayra removed from here */}
           </div>
 
           {/* Right: Mint panel + Mint result */}
@@ -762,6 +797,29 @@ function App() {
                   ? "Minting..."
                   : "Mint your FUDker"}
               </button>
+
+              {/* 🧃 Pack image lives here, disappears after mint */}
+              {!lastMintAddress && !minting && (
+                <div
+                  style={{
+                    marginTop: "1.25rem",
+                    display: "flex",
+                    justifyContent: "center",
+                  }}
+                >
+                  <img
+                    src={pack}
+                    alt="FUDkers Pack"
+                    style={{
+                      width: "100%",
+                      maxWidth: "260px",
+                      borderRadius: "18px",
+                      border: "1px solid rgba(255,255,255,0.18)",
+                      boxShadow: "0 16px 38px rgba(0,0,0,0.75)",
+                    }}
+                  />
+                </div>
+              )}
             </section>
 
             {/* 🔔 Mint success section with reveal + traits */}
@@ -1284,7 +1342,7 @@ function App() {
                                       marginBottom: "2px",
                                     }}
                                   >
-                                    {trait.trait_type}
+                                      {trait.trait_type}
                                   </div>
                                   <div
                                     style={{
@@ -1292,7 +1350,7 @@ function App() {
                                       color: "#fff",
                                     }}
                                   >
-                                    {trait.value}
+                                      {trait.value}
                                   </div>
                                 </li>
                               ))}
@@ -1414,6 +1472,162 @@ function App() {
                 </p>
               </div>
             ))}
+          </div>
+
+          {/* 🌟 Creator Tip / Support JayRa section */}
+          <div
+            style={{
+              marginTop: "2rem",
+              paddingTop: "1.25rem",
+              borderTop: "1px solid rgba(255,255,255,0.16)",
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "1.25rem",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <div
+              style={{
+                flex: "0 0 260px",
+                maxWidth: "100%",
+                display: "flex",
+                justifyContent: "center",
+              }}
+            >
+              <img
+                src={jayra}
+                alt="JayRaTheRu"
+                style={{
+                  width: "100%",
+                  maxWidth: "260px",
+                  borderRadius: "18px",
+                  border: "1px solid rgba(255,255,255,0.18)",
+                  boxShadow: "0 18px 40px rgba(0,0,0,0.85)",
+                }}
+              />
+            </div>
+
+            <div
+              style={{
+                flex: "1 1 260px",
+                minWidth: "0",
+              }}
+            >
+              <h3
+                style={{
+                  margin: "0 0 0.5rem",
+                  fontSize: "1rem",
+                }}
+              >
+                💿 Creator Tip — Support JayRa
+              </h3>
+              <p
+                style={{
+                  margin: "0 0 0.75rem",
+                  fontSize: "0.9rem",
+                  opacity: 0.85,
+                }}
+              >
+                If you vibe with the art, the music, and the Neighborhood
+                we&apos;re building, you can send a small SOL tip to help keep
+                the crates pressed, dev paid, and the story moving forward.
+              </p>
+
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "0.5rem",
+                  alignItems: "center",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.1"
+                  value={tipAmountSol}
+                  onChange={(e) => setTipAmountSol(e.target.value)}
+                  style={{
+                    flex: "1 1 120px",
+                    minWidth: "0",
+                    padding: "0.5rem 0.75rem",
+                    borderRadius: "8px",
+                    border: "1px solid #555",
+                    background: "#111",
+                    color: "#fff",
+                    fontSize: "0.85rem",
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: "0.85rem",
+                    opacity: 0.8,
+                    marginRight: "0.25rem",
+                  }}
+                >
+                  SOL
+                </span>
+                <button
+                  onClick={handleSupportJayRa}
+                  disabled={tipLoading}
+                  style={{
+                    padding: "0.5rem 1.1rem",
+                    borderRadius: "999px",
+                    border: "none",
+                    fontWeight: 600,
+                    cursor: tipLoading ? "wait" : "pointer",
+                    background: tipLoading
+                      ? "rgba(120,120,120,0.8)"
+                      : "linear-gradient(135deg,#ffbf5f,#ff3bff)",
+                    color: "#000",
+                    fontSize: "0.85rem",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {tipLoading ? "Sending..." : "Support JayRa"}
+                </button>
+              </div>
+
+              {!isWalletConnected && (
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: "0.8rem",
+                    opacity: 0.75,
+                  }}
+                >
+                  Connect your wallet above to send a tip.
+                </p>
+              )}
+
+              {tipError && (
+                <p
+                  style={{
+                    margin: "0.4rem 0 0",
+                    fontSize: "0.8rem",
+                    color: "#ff6b6b",
+                  }}
+                >
+                  {tipError}
+                </p>
+              )}
+
+              {tipSuccess && (
+                <p
+                  style={{
+                    margin: "0.4rem 0 0",
+                    fontSize: "0.8rem",
+                    color: "#7de0ff",
+                    wordBreak: "break-all",
+                  }}
+                >
+                  {tipSuccess}
+                </p>
+              )}
+            </div>
           </div>
         </section>
 
