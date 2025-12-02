@@ -7,9 +7,8 @@ export const ENV = "devnet"; // later you'll flip this to "mainnet"
 const SOLSCAN_BASE = "https://solscan.io";
 
 const DEVNET_CONFIG = {
-  // ✅ Your Helius devnet RPC
-  RPC_ENDPOINT:
-    "https://devnet.helius-rpc.com/?api-key=af2e60ed-0422-4853-bd1c-7e6c20cf66b6",
+  // ✅ Use Solana public devnet RPC for now
+  RPC_ENDPOINT: "https://api.devnet.solana.com",
 
   // ✅ CM #2 DEVNET
   CANDY_MACHINE_ID: "9aw2qvPDzZmXbwiGY61k355ngcg5mv1pqVtncMUi3osw",
@@ -23,10 +22,9 @@ const DEVNET_CONFIG = {
 
 const MAINNET_CONFIG = {
   // For later: we’ll swap this for your Cloudflare/mainnet RPC
-    RPC_ENDPOINT:
+  RPC_ENDPOINT:
     import.meta.env.VITE_RPC_ENDPOINT ||
-    "https://devnet.helius-rpc.com/?api-key=af2e60ed-0422-4853-bd1c-7e6c20cf66b6",
-
+    "https://api.mainnet-beta.solana.com",
 
   // Placeholder mainnet values for now
   CANDY_MACHINE_ID: "2Qt4wgrU2nfFcxKoyhyUJzrCGeDVtpeNZsREG7DfR1eX",
