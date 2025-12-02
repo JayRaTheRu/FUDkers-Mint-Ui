@@ -150,9 +150,10 @@ function App() {
   const [candyGuard, setCandyGuard] = useState(null);
   const [error, setError] = useState(null);
 
-  // Mint result state (for “You just minted …” panel)
+  // Mint result state (for reveal panel)
   const [lastMintAddress, setLastMintAddress] = useState(null);
   const [lastMintMetadata, setLastMintMetadata] = useState(null);
+  const [revealOpened, setRevealOpened] = useState(false); // ✅ pack-open state
 
   // Wallet gallery state (for CM #2 – local history)
   const [walletLookup, setWalletLookup] = useState("");
@@ -323,6 +324,7 @@ function App() {
       setError(null);
       setLastMintAddress(null);
       setLastMintMetadata(null); // reset previous reveal
+      setRevealOpened(false);    // ✅ pack is closed for this mint
 
       const mintSigner = generateSigner(umi);
       const ownerPk = publicKey(wallet.publicKey.toBase58());
@@ -688,7 +690,6 @@ function App() {
               The token is the ticket… proof you were here while the block was
               still underground. Close your two eyes, open your 3rd 👁️
             </p>
-            {/* ⬆️ pack & jayra removed from here */}
           </div>
 
           {/* Right: Mint panel + Mint result */}
@@ -798,7 +799,7 @@ function App() {
                   : "Mint your FUDker"}
               </button>
 
-              {/* 🧃 Pack image lives here, disappears after mint */}
+              {/* 🧃 Pack image lives here, before any mint */}
               {!lastMintAddress && !minting && (
                 <div
                   style={{
@@ -822,7 +823,7 @@ function App() {
               )}
             </section>
 
-            {/* 🔔 Mint success section with reveal + traits */}
+            {/* 🔔 Mint success section with pack → click-to-open reveal */}
             {lastMintAddress && (
               <section
                 style={{
@@ -836,10 +837,55 @@ function App() {
                 }}
               >
                 <h2 style={{ marginTop: 0, marginBottom: "0.75rem" }}>
-                  ✨ Pack opened! You pulled:
+                  ✨ Your pack is ready
                 </h2>
 
-                {lastMintMetadata && (
+                {/* 🃏 Pack stage: before revealOpened */}
+                {!revealOpened && (
+                  <div
+                    style={{
+                      marginTop: "0.75rem",
+                      marginBottom: "1rem",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <img
+                      src={pack}
+                      alt="FUDkers Pack"
+                      className={!lastMintMetadata ? "pack-spin" : ""}
+                      onClick={() => {
+                        if (!lastMintMetadata) return; // don't open before metadata exists
+                        setRevealOpened(true);
+                      }}
+                      style={{
+                        width: "100%",
+                        maxWidth: "260px",
+                        borderRadius: "18px",
+                        border: "1px solid rgba(255,255,255,0.18)",
+                        boxShadow: "0 16px 38px rgba(0,0,0,0.75)",
+                        cursor: lastMintMetadata ? "pointer" : "default",
+                        opacity: lastMintMetadata ? 1 : 0.8,
+                      }}
+                    />
+                    <p
+                      style={{
+                        fontSize: "0.85rem",
+                        opacity: 0.85,
+                        textAlign: "center",
+                      }}
+                    >
+                      {lastMintMetadata
+                        ? "Click the pack to reveal your FUDker."
+                        : "Minting on-chain… your pack will be ready to open in a moment."}
+                    </p>
+                  </div>
+                )}
+
+                {/* 🎬 After user clicks the pack: full reveal */}
+                {revealOpened && lastMintMetadata && (
                   <>
                     <h3
                       style={{
@@ -851,7 +897,6 @@ function App() {
                       {lastMintMetadata.name}
                     </h3>
 
-                    {/* Big media + traits side by side */}
                     {(lastMintMetadata.animationUrl ||
                       lastMintMetadata.imageUrl ||
                       (lastMintMetadata.traits &&
@@ -1002,6 +1047,7 @@ function App() {
                   </>
                 )}
 
+                {/* Mint address + Solscan always visible */}
                 <p
                   style={{
                     fontSize: "0.85rem",
@@ -1342,7 +1388,7 @@ function App() {
                                       marginBottom: "2px",
                                     }}
                                   >
-                                      {trait.trait_type}
+                                    {trait.trait_type}
                                   </div>
                                   <div
                                     style={{
@@ -1350,7 +1396,7 @@ function App() {
                                       color: "#fff",
                                     }}
                                   >
-                                      {trait.value}
+                                    {trait.value}
                                   </div>
                                 </li>
                               ))}
@@ -1391,7 +1437,7 @@ function App() {
           )}
         </section>
 
-        {/* FUDker PFP Asset Grid */}
+        {/* FUDker PFP Asset Grid + Creator Tip */}
         <section
           style={{
             marginTop: "2rem",
@@ -1529,9 +1575,10 @@ function App() {
                   opacity: 0.85,
                 }}
               >
-                If you vibe with the art, the music, and the Neighborhood
+                If you vibe with the art, the music, the creativity and the Neighborhood
                 we&apos;re building, you can send a small SOL tip to help keep
-                the crates pressed, dev paid, and the story moving forward.
+                the beats bumping, the creative flow and the story moving
+                forward.
               </p>
 
               <div
