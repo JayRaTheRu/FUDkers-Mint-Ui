@@ -86,7 +86,7 @@ const FUDKER_ORDER = [
   "DeePloy",
   "MiLLY",
   "TRiLLY",
-  "SWAPZ",
+  "Swapz",
   "Slana",
   "Meemz",
   "DRiP",
@@ -123,7 +123,7 @@ const FUDKER_PFPS = FUDKER_ORDER.map((name) => ({
 const CREATOR_WALLET = "6WbBX58cHCcuhR6BPpCDXm5eRULuxwxes7jwEodTWtHc";
 
 // 👉 Site version (bump this every time you deploy / push)
-const SITE_VERSION = "v1.5";
+const SITE_VERSION = "v1.6";
 
 // Local storage key for CM #2 mint history
 const MINT_HISTORY_STORAGE_KEY = "fudkers_cm2_mint_history_v1";
