@@ -3,7 +3,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 
-import { Connection, SystemProgram, Transaction, PublicKey } from "@solana/web3.js";
+import {
+  Connection,
+  SystemProgram,
+  Transaction,
+  PublicKey,
+} from "@solana/web3.js";
 
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
 import {
@@ -37,33 +42,27 @@ import {
   MINT_PRICE_SOL,
 } from "./chainConfig.js";
 
-import "./App.css"; // ✅ hook up the CSS
+import "./App.css";
 
 import bg from "./assets/bg.png";
 import logo from "./assets/logo.png";
 import showcase from "./assets/fudkers-showcase.gif";
 import pack from "./assets/pack.png";
 import jayra from "./assets/jayra.png";
-import fudkerCoin from "./assets/fudker-coin.png"; // 🪙 spinning meme coin
-
-// 🔄 Load all transparent FUDker PNGs from assets/fudkers-pfps
-const fudkerImages = import.meta.glob("./assets/fudkers-pfps/*.png", {
-  eager: true,
-  import: "default",
-});
+import fudkerCoin from "./assets/fudker-coin.png";
 
 // Desired FUDker order (0–50) – MUST match file basenames exactly
 const FUDKER_ORDER = [
   "JayRaTheRu",
-  "Viny L",
+  "Viny-L",
   "Bloo",
-  "LouCypher",
+  "Lou-Cypher",
   "KiETH",
   "Krypta",
   "Pape",
-  "Pau Lee",
+  "Pau-Lee",
   "Ayuh",
-  "YuDoo YuGee",
+  "YuDoo-YuGee",
   "FunKer",
   "DJenn",
   "OiNK",
@@ -80,7 +79,7 @@ const FUDKER_ORDER = [
   "GEM",
   "BlockChin",
   "DOOKS",
-  "Aye Eye",
+  "Aye-Eye",
   "KodeR",
   "Ethster",
   "ERupt",
@@ -107,18 +106,18 @@ const FUDKER_ORDER = [
   "WEB3R",
 ];
 
-// Map imports → { name, src } and then order by FUDKER_ORDER
-const FUDKER_PFPS_UNORDERED = Object.entries(fudkerImages).map(
-  ([path, src]) => {
-    const filename = path.split("/").pop() || "";
-    const name = filename.replace(/\.[^/.]+$/, ""); // strip extension
-    return { name, src };
-  }
-);
-
-const FUDKER_PFPS = FUDKER_ORDER.map((name) =>
-  FUDKER_PFPS_UNORDERED.find((f) => f.name === name)
-).filter(Boolean);
+// FUDker PFPs: use files from public/pfps (WEBP for display, PNG for download)
+// Ensure you have, for example:
+//   public/pfps/JayRaTheRu.webp
+//   public/pfps/JayRaTheRu.png
+//   public/pfps/Viny-L.webp
+//   public/pfps/Viny-L.png
+//   ...etc for every name in FUDKER_ORDER
+const FUDKER_PFPS = FUDKER_ORDER.map((name) => ({
+  name,
+  src: `/pfps/${name}.webp`, // transparent WEBP in public/pfps
+  pngSrc: `/pfps/${name}.png`, // full-res PNG in public/pfps
+}));
 
 // 👉 Creator / SOL payment destination (must match candy guard solPayment destination)
 const CREATOR_WALLET = "6WbBX58cHCcuhR6BPpCDXm5eRULuxwxes7jwEodTWtHc";
@@ -154,8 +153,8 @@ function App() {
   // Mint result state (for reveal panel)
   const [lastMintAddress, setLastMintAddress] = useState(null);
   const [lastMintMetadata, setLastMintMetadata] = useState(null);
-  const [revealOpened, setRevealOpened] = useState(false); // ✅ pack-open state
-  const [autoRevealWhenReady, setAutoRevealWhenReady] = useState(false); // ✅ user clicked before metadata loaded
+  const [revealOpened, setRevealOpened] = useState(false);
+  const [autoRevealWhenReady, setAutoRevealWhenReady] = useState(false);
 
   // Wallet gallery state (for CM #2 – local history)
   const [walletLookup, setWalletLookup] = useState("");
@@ -170,20 +169,18 @@ function App() {
   const [tipError, setTipError] = useState(null);
   const [tipSuccess, setTipSuccess] = useState(null);
 
-  // Umi client (Metaplex – TM candy machine v3 + token metadata)
+  // Umi client
   const umi = useMemo(() => {
     return createUmi(RPC_ENDPOINT)
       .use(mplCandyMachine())
       .use(mplTokenMetadata());
   }, []);
 
-  // Attach wallet identity to Umi when wallet changes
   useEffect(() => {
     if (!wallet || !wallet.publicKey) return;
     umi.use(walletAdapterIdentity(wallet));
   }, [umi, wallet]);
 
-  // Helper: fetch metadata for a given mint (single attempt)
   async function fetchMetadataForMintAddress(mintAddress) {
     console.log("Fetching metadata for mint:", mintAddress);
 
@@ -211,8 +208,7 @@ function App() {
       }
     }
 
-    const name =
-      (json && json.name) || asset.metadata.name || "FUDker";
+    const name = (json && json.name) || asset.metadata.name || "FUDker";
 
     const imageUrl =
       (json &&
@@ -232,7 +228,6 @@ function App() {
     return { name, imageUrl, animationUrl, traits };
   }
 
-  // 🔁 Wrapper: retry metadata until media/traits show (or we give up)
   async function loadMintMetadataWithRetry(mintAddress) {
     let lastError = null;
 
@@ -241,12 +236,10 @@ function App() {
         console.log(`Metadata load attempt ${attempt} for`, mintAddress);
         const meta = await fetchMetadataForMintAddress(mintAddress);
 
-        const hasMedia =
-          !!(meta && (meta.animationUrl || meta.imageUrl));
+        const hasMedia = !!(meta && (meta.animationUrl || meta.imageUrl));
         const hasTraits =
           Array.isArray(meta?.traits) && meta.traits.length > 0;
 
-        // If we got anything meaningful, use it immediately
         if (hasMedia || hasTraits || attempt === 5) {
           return meta;
         }
@@ -258,7 +251,6 @@ function App() {
         );
       }
 
-      // Exponential-ish backoff: 0.8s, 1.6s, 2.4s, 3.2s...
       await sleep(800 * attempt);
     }
 
@@ -266,7 +258,6 @@ function App() {
       throw lastError;
     }
 
-    // Final ultra-fallback (should rarely be hit)
     return {
       name: "FUDker",
       imageUrl: null,
@@ -275,7 +266,6 @@ function App() {
     };
   }
 
-  // 🚀 When metadata finally arrives AND user already clicked the pack, auto-open
   useEffect(() => {
     if (lastMintMetadata && autoRevealWhenReady && !revealOpened) {
       setRevealOpened(true);
@@ -283,7 +273,6 @@ function App() {
     }
   }, [lastMintMetadata, autoRevealWhenReady, revealOpened]);
 
-  // Load Candy Machine + Guard
   useEffect(() => {
     const loadCandyMachine = async () => {
       try {
@@ -294,7 +283,6 @@ function App() {
         const cm = await fetchCandyMachine(umi, cmPubkey);
         setCandyMachine(cm);
 
-        // Guard is attached via mintAuthority
         let guard = null;
         try {
           guard = await safeFetchCandyGuard(umi, cm.mintAuthority);
@@ -333,18 +321,17 @@ function App() {
       setMinting(true);
       setError(null);
       setLastMintAddress(null);
-      setLastMintMetadata(null); // reset previous reveal
-      setRevealOpened(false); // ✅ pack is closed for this mint
-      setAutoRevealWhenReady(false); // reset auto-open flag
+      setLastMintMetadata(null);
+      setRevealOpened(false);
+      setAutoRevealWhenReady(false);
 
       const mintSigner = generateSigner(umi);
       const ownerPk = publicKey(wallet.publicKey.toBase58());
 
-      // Build transaction: bump compute units + mintV2
       const builder = transactionBuilder()
         .add(
           setComputeUnitLimit(umi, {
-            units: 500_000, // bump from ~200k default to 500k
+            units: 500_000,
           })
         )
         .add(
@@ -364,7 +351,7 @@ function App() {
                 destination: publicKey(CREATOR_WALLET),
               }),
               mintLimit: some({
-                id: 1, // must match the guard config (id: 1, amount: 2)
+                id: 1,
               }),
             },
           })
@@ -376,14 +363,12 @@ function App() {
       console.log("Minted NFT:", mintedAddress);
       setLastMintAddress(mintedAddress);
 
-      // 🔍 Fetch on-chain and off-chain metadata to show name, image, MP4, traits
       try {
         const metadata = await loadMintMetadataWithRetry(mintedAddress);
         console.log("Loaded mint metadata:", metadata);
         setLastMintMetadata(metadata);
       } catch (metaErr) {
         console.warn("Failed to load NFT metadata (non-fatal):", metaErr);
-        // Fallback so the UI can still reveal even if metadata is slow or fails
         setLastMintMetadata({
           name: "Your FUDker",
           imageUrl: null,
@@ -392,7 +377,6 @@ function App() {
         });
       }
 
-      // 🔐 Save to local mint history for gallery
       try {
         const ownerStr = wallet.publicKey.toBase58();
         const raw = localStorage.getItem(MINT_HISTORY_STORAGE_KEY);
@@ -416,7 +400,6 @@ function App() {
           ? e
           : "Mint failed. Check console for details.");
 
-      // ✅ Friendlier UX when user cancels in wallet / Pocket Universe
       if (
         msg.includes("User rejected the request") ||
         e?.name === "WalletSignTransactionError"
@@ -524,9 +507,7 @@ function App() {
       const signature = await wallet.sendTransaction(tx, connection);
       await connection.confirmTransaction(signature, "confirmed");
 
-      setTipSuccess(`Thank you! Tx: ${signature}`);
-      // Optional: clear amount
-      // setTipAmountSol("");
+      setTipSuccess(`Tip sent! Tx: ${signature}`);
     } catch (err) {
       console.error("Tip transaction failed:", err);
       setTipError(
@@ -538,7 +519,6 @@ function App() {
     }
   }
 
-  // Helper for Solscan links
   const clusterQuery =
     ENV === "devnet" ? "?cluster=devnet" : ENV === "mainnet" ? "" : "";
 
@@ -561,7 +541,6 @@ function App() {
       lastMintMetadata.imageUrl ||
       (lastMintMetadata.traits &&
         lastMintMetadata.traits.length > 0));
-
   return (
     <div
       className="app-root"
@@ -573,7 +552,7 @@ function App() {
         color: "#fff",
         display: "flex",
         justifyContent: "center",
-        padding: "2rem 1rem",
+        padding: "1.5rem 1rem",
       }}
     >
       <div
@@ -583,7 +562,7 @@ function App() {
           maxWidth: "1000px",
           background: "rgba(0,0,0,0.75)",
           borderRadius: "24px",
-          padding: "1.5rem",
+          padding: "1.25rem",
           boxShadow: "0 18px 40px rgba(0,0,0,0.6)",
         }}
       >
@@ -594,7 +573,7 @@ function App() {
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            marginBottom: "1.5rem",
+            marginBottom: "1.25rem",
             gap: "1rem",
           }}
         >
@@ -602,15 +581,17 @@ function App() {
             <img
               src={logo}
               alt="FUDkers"
-              style={{ height: "56px", borderRadius: "12px" }}
+              style={{ height: "48px", borderRadius: "12px" }}
             />
             <div>
-              <h1 style={{ fontSize: "1.5rem", margin: 0 }}>FUDkers Mint</h1>
+              <h1 style={{ fontSize: "1.5rem", margin: 0 }}>
+                1of1 FUDkers Random Mint
+              </h1>
               <p
                 style={{
                   margin: 0,
                   fontSize: "0.85rem",
-                  opacity: 0.8,
+                  opacity: 0.9,
                 }}
               >
                 Network: <strong>{NETWORK_LABEL}</strong>
@@ -619,7 +600,7 @@ function App() {
                 style={{
                   margin: 0,
                   fontSize: "0.75rem",
-                  opacity: 0.75,
+                  opacity: 0.8,
                 }}
               >
                 Collection ID:{" "}
@@ -635,34 +616,55 @@ function App() {
                 </a>
               </p>
 
-              {/* 🔥 Meme coin teaser + spinning coin */}
+              {/* 🔥 Meme coin teaser + spinning coin in a soft pill */}
               <div
                 style={{
                   marginTop: "0.4rem",
-                  display: "flex",
+                  display: "inline-flex",
                   alignItems: "center",
                   gap: "0.5rem",
                   fontSize: "0.8rem",
-                  opacity: 0.9,
-                  whiteSpace: "nowrap",
+                  opacity: 0.7,
+                  padding: "0.25rem 0.5rem",
+                  borderRadius: "999px",
+                  border: "1px solid rgba(255,255,255,0.15)",
+                  background: "rgba(10,10,10,0.85)",
                 }}
               >
-                <img
-                  src={fudkerCoin}
-                  alt="FUDker coin"
-                  className="fudker-coin-spin"
-                  style={{
-                    width: "60px", // medium size
-                    height: "60",
-                  }}
-                />
+                <div
+  style={{
+    width: "52px",
+    height: "52px",
+    borderRadius: "999px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background:
+      "radial-gradient(circle at 30% 0%, rgba(255,255,255,0.35), transparent)",
+    overflow: "hidden",
+  }}
+>
+  <img
+    src={fudkerCoin}
+    alt="FUDker coin"
+    className="fudker-coin-spin"
+    style={{
+      width: "46px",
+      height: "46px",
+      objectFit: "contain",
+    }}
+  />
+</div>
+
                 <span
                   style={{
                     overflow: "hidden",
                     textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
                   }}
                 >
-                  Neighborhood Meme Coin (COMING SOON) • <strong>$??????</strong> • CA: Not Yet Live
+                  Neighborhood Meme Coin (COMING SOON) •{" "}
+                  <strong>$??????</strong> • CA: Not Yet Live
                 </span>
               </div>
             </div>
@@ -792,13 +794,26 @@ function App() {
                 </p>
               )}
 
+              {/* Step hint */}
+              <p
+                style={{
+                  margin: 0,
+                  marginBottom: "0.4rem",
+                  fontSize: "0.75rem",
+                  opacity: 0.8,
+                }}
+              >
+                <strong>1.</strong> Connect wallet · <strong>2.</strong> Mint
+                your FUDker · <strong>3.</strong> Open your pack
+              </p>
+
               <button
                 onClick={handleMint}
                 disabled={!isWalletConnected || loading || minting}
                 style={{
                   width: "100%",
                   padding: "0.75rem 1rem",
-                  marginTop: "0.75rem",
+                  marginTop: "0.25rem",
                   borderRadius: "999px",
                   border: "none",
                   fontWeight: 600,
@@ -826,11 +841,24 @@ function App() {
                   : "Mint your FUDker"}
               </button>
 
+              {/* Network microcopy */}
+              <p
+                style={{
+                  marginTop: "0.4rem",
+                  fontSize: "0.75rem",
+                  opacity: 0.75,
+                  textAlign: "center",
+                }}
+              >
+                You&apos;re on <strong>{NETWORK_LABEL}</strong>. Make sure your
+                wallet is set to the same network.
+              </p>
+
               {/* Pack area: idle vs minting */}
               {minting ? (
                 <div
                   style={{
-                    marginTop: "1.25rem",
+                    marginTop: "1.0rem",
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
@@ -864,7 +892,7 @@ function App() {
                 !lastMintAddress && (
                   <div
                     style={{
-                      marginTop: "1.25rem",
+                      marginTop: "1.0rem",
                       display: "flex",
                       justifyContent: "center",
                     }}
@@ -885,7 +913,7 @@ function App() {
               )}
             </section>
 
-            {/* 🔔 Mint success section with pack → click-to-open reveal */}
+            {/* Mint success section with pack → click-to-open reveal */}
             {!minting && lastMintAddress && (
               <section
                 style={{
@@ -902,7 +930,7 @@ function App() {
                   ✨ Your pack is ready
                 </h2>
 
-                {/* 🃏 Pack stage: before revealOpened */}
+                {/* Pack stage: before revealOpened */}
                 {!revealOpened && (
                   <div
                     style={{
@@ -914,7 +942,6 @@ function App() {
                       gap: "0.6rem",
                     }}
                   >
-                    {/* Gradient, pulsing CTA text */}
                     <p
                       className="pack-cta-text cta-pulse"
                       style={{
@@ -939,12 +966,11 @@ function App() {
                       alt="FUDkers Pack"
                       className={
                         lastMintMetadata
-                          ? "pack-glow"
+                          ? "pack-glow pack-hover"
                           : "pack-glow pack-disabled"
                       }
                       onClick={() => {
                         if (!lastMintMetadata) {
-                          // ✅ User wants to open, but metadata isn't ready yet
                           setAutoRevealWhenReady(true);
                           return;
                         }
@@ -977,7 +1003,7 @@ function App() {
                   </div>
                 )}
 
-                {/* 🎬 After user clicks the pack: full reveal */}
+                {/* After user clicks the pack: full reveal */}
                 {revealOpened && lastMintMetadata && (
                   <>
                     <h3
@@ -1122,7 +1148,6 @@ function App() {
                       </div>
                     ) : (
                       <>
-                        {/* 🧰 Fallback: metadata loaded, but no media/traits yet */}
                         <p
                           style={{
                             fontSize: "0.85rem",
@@ -1364,15 +1389,27 @@ function App() {
             walletNfts.length === 0 &&
             !walletLookupError &&
             walletLookup && (
-              <p
+              <div
                 style={{
-                  fontSize: "0.85rem",
-                  opacity: 0.7,
+                  marginTop: "0.5rem",
+                  padding: "0.85rem 1rem",
+                  borderRadius: "12px",
+                  background: "rgba(20,20,20,0.9)",
+                  border: "1px solid rgba(255,255,255,0.06)",
                 }}
               >
-                No CM #2 FUDkers in this browser&apos;s history for that wallet
-                yet — or they were minted on a different device / browser.
-              </p>
+                <p
+                  style={{
+                    fontSize: "0.85rem",
+                    opacity: 0.7,
+                    margin: 0,
+                  }}
+                >
+                  No CM #2 FUDkers in this browser&apos;s history for that
+                  wallet yet — or they were minted on a different
+                  device/browser.
+                </p>
+              </div>
             )}
 
           {walletNfts.length > 0 && (
@@ -1387,7 +1424,6 @@ function App() {
               {walletNfts.map((mint) => {
                 const details = walletNftDetails[mint] || {};
 
-                // ✅ Only show ONE media element – prefer animation (MP4), fallback to PNG
                 let media = null;
                 if (details.animationUrl) {
                   media = (
@@ -1462,7 +1498,6 @@ function App() {
                           justifyContent: "center",
                         }}
                       >
-                        {/* Left: BIG video/image */}
                         {media && (
                           <div
                             className="media-square"
@@ -1482,7 +1517,6 @@ function App() {
                           </div>
                         )}
 
-                        {/* Right: Traits */}
                         {hasTraits && (
                           <div
                             style={{
@@ -1532,7 +1566,7 @@ function App() {
                                       marginBottom: "2px",
                                     }}
                                   >
-                                      {trait.trait_type}
+                                    {trait.trait_type}
                                   </div>
                                   <div
                                     style={{
@@ -1540,7 +1574,7 @@ function App() {
                                       color: "#fff",
                                     }}
                                   >
-                                      {trait.value}
+                                    {trait.value}
                                   </div>
                                 </li>
                               ))}
@@ -1602,7 +1636,7 @@ function App() {
             }}
           >
             Transparent PNGs of each FUDker, perfect for PFPs, flyers, content,
-            and remixes. Right-click / tap-hold to save.
+            and remixes. Right-click / tap-hold to save, or download the PNG.
           </p>
 
           <div
@@ -1612,9 +1646,10 @@ function App() {
               gap: "1rem",
             }}
           >
-            {FUDKER_PFPS.map(({ name, src }) => (
+            {FUDKER_PFPS.map(({ name, src, pngSrc }) => (
               <div
                 key={name}
+                className="pfp-card"
                 style={{
                   background: "rgba(15,15,15,0.95)",
                   borderRadius: "16px",
@@ -1660,11 +1695,29 @@ function App() {
                 >
                   {name}
                 </p>
+                {pngSrc && (
+                  <a
+                    href={pngSrc}
+                    download={`${name}.png`}
+                    style={{
+                      marginTop: "0.35rem",
+                      fontSize: "0.7rem",
+                      textDecoration: "none",
+                      padding: "0.25rem 0.6rem",
+                      borderRadius: "999px",
+                      border: "1px solid rgba(255,255,255,0.2)",
+                      color: "#eee",
+                      opacity: 0.85,
+                    }}
+                  >
+                    Download PNG
+                  </a>
+                )}
               </div>
             ))}
           </div>
 
-          {/* 🌟 Creator Tip / Support JayRa section */}
+          {/* Creator Tip / Support JayRa section */}
           <div
             style={{
               marginTop: "2rem",
@@ -1734,6 +1787,35 @@ function App() {
                   marginBottom: "0.5rem",
                 }}
               >
+                {/* Quick-pick buttons */}
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "0.25rem",
+                    flexWrap: "wrap",
+                    marginRight: "0.25rem",
+                  }}
+                >
+                  {[0.05, 0.1, 0.25].map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setTipAmountSol(amt.toString())}
+                      style={{
+                        padding: "0.25rem 0.5rem",
+                        borderRadius: "999px",
+                        border: "1px solid rgba(255,255,255,0.25)",
+                        background: "transparent",
+                        color: "#fff",
+                        fontSize: "0.7rem",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {amt}
+                    </button>
+                  ))}
+                </div>
+
                 <input
                   type="number"
                   min="0"
@@ -1851,6 +1933,15 @@ function App() {
             }}
           >
             Site version <code>{SITE_VERSION}</code> · Devnet CM #2 rehearsal
+          </div>
+          <div
+            style={{
+              marginTop: "0.2rem",
+              fontSize: "0.75rem",
+              opacity: 0.8,
+            }}
+          >
+            It&apos;s all LOVE in the Neighborhood, FUDkers..
           </div>
         </footer>
       </div>

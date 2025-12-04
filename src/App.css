@@ -23,6 +23,11 @@ body {
   min-height: 100vh;
 }
 
+/* ✅ Default: allow images to be draggable everywhere */
+img {
+  -webkit-user-drag: auto;
+}
+
 /* App wrapper */
 .app-root {
   width: 100%;
@@ -203,6 +208,9 @@ body {
     filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.85));
   }
 }
+
+/* ===== Spinning meme coin ===== */
+
 .fudker-coin-spin {
   display: inline-block;
   border-radius: 999px;
@@ -221,4 +229,37 @@ body {
   100% {
     transform: rotateY(360deg);
   }
+}
+
+/* ===== Extra polish: pack + PFP hover states ===== */
+
+/* Base pack hover class – add this alongside pack-glow in JSX */
+.pack-hover {
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  cursor: pointer;
+}
+
+/* Pack hover when it's ready to open */
+.pack-hover:hover {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 22px 40px rgba(0, 0, 0, 0.9);
+}
+
+/* Base PFP card class */
+.pfp-card {
+  transition: transform 0.12s ease, box-shadow 0.12s ease,
+    border-color 0.12s ease;
+}
+
+/* PFP card hover */
+.pfp-card:hover {
+  transform: translateY(-2px) scale(1.02);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.85);
+}
+
+/* 🚫 Make ONLY PFP kit preview images non-draggable */
+.pfp-card img {
+  -webkit-user-drag: none;
+  user-select: none;
 }
