@@ -107,12 +107,6 @@ const FUDKER_ORDER = [
 ];
 
 // FUDker PFPs: use files from public/pfps (WEBP for display, PNG for download)
-// Ensure you have, for example:
-//   public/pfps/JayRaTheRu.webp
-//   public/pfps/JayRaTheRu.png
-//   public/pfps/Viny-L.webp
-//   public/pfps/Viny-L.png
-//   ...etc for every name in FUDKER_ORDER
 const FUDKER_PFPS = FUDKER_ORDER.map((name) => ({
   name,
   src: `/pfps/${name}.webp`, // transparent WEBP in public/pfps
@@ -519,6 +513,21 @@ function App() {
     }
   }
 
+  // ⭐ Share on X handler
+  function handleShareOnX() {
+    if (!lastMintAddress) return;
+
+    const baseUrl = "https://x.com/intent/post";
+    const text = `I just minted a Neighborhood FUDker! 🧱
+
+Mint address: ${lastMintAddress}
+
+Mint yours at: ${window.location.href}`;
+    const url = `${baseUrl}?text=${encodeURIComponent(text)}`;
+
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
   const clusterQuery =
     ENV === "devnet" ? "?cluster=devnet" : ENV === "mainnet" ? "" : "";
 
@@ -541,6 +550,7 @@ function App() {
       lastMintMetadata.imageUrl ||
       (lastMintMetadata.traits &&
         lastMintMetadata.traits.length > 0));
+
   return (
     <div
       className="app-root"
@@ -632,29 +642,29 @@ function App() {
                 }}
               >
                 <div
-  style={{
-    width: "52px",
-    height: "52px",
-    borderRadius: "999px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background:
-      "radial-gradient(circle at 30% 0%, rgba(255,255,255,0.35), transparent)",
-    overflow: "hidden",
-  }}
->
-  <img
-    src={fudkerCoin}
-    alt="FUDker coin"
-    className="fudker-coin-spin"
-    style={{
-      width: "46px",
-      height: "46px",
-      objectFit: "contain",
-    }}
-  />
-</div>
+                  style={{
+                    width: "52px",
+                    height: "52px",
+                    borderRadius: "999px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background:
+                      "radial-gradient(circle at 30% 0%, rgba(255,255,255,0.35), transparent)",
+                    overflow: "hidden",
+                  }}
+                >
+                  <img
+                    src={fudkerCoin}
+                    alt="FUDker coin"
+                    className="fudker-coin-spin"
+                    style={{
+                      width: "46px",
+                      height: "46px",
+                      objectFit: "contain",
+                    }}
+                  />
+                </div>
 
                 <span
                   style={{
@@ -1201,18 +1211,47 @@ function App() {
                       </>
                     )}
 
+                    {/* Share + copy text */}
                     <p
                       style={{
                         fontSize: "0.8rem",
                         opacity: 0.75,
                         marginTop: 0,
-                        marginBottom: "0.75rem",
+                        marginBottom: "0.5rem",
                         textAlign: "center",
                       }}
                     >
                       Screenshot your FUDker and share this pull with the
                       Neighborhood 🧱
                     </p>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        marginBottom: "0.75rem",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={handleShareOnX}
+                        style={{
+                          padding: "0.55rem 1.1rem",
+                          borderRadius: "999px",
+                          border: "none",
+                          background:
+                            "linear-gradient(135deg,#1DA1F2,#ff5f7e)",
+                          color: "#000",
+                          fontSize: "0.85rem",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "0.35rem",
+                        }}
+                      >
+                        <span>Share this pull on X</span>
+                      </button>
+                    </div>
                   </>
                 )}
 
@@ -1566,21 +1605,21 @@ function App() {
                                       marginBottom: "2px",
                                     }}
                                   >
-                                    {trait.trait_type}
-                                  </div>
-                                  <div
-                                    style={{
-                                      fontSize: "14px",
-                                      color: "#fff",
-                                    }}
-                                  >
-                                    {trait.value}
-                                  </div>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
+                                      {trait.trait_type}
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: "14px",
+                                        color: "#fff",
+                                      }}
+                                    >
+                                      {trait.value}
+                                    </div>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
                       </div>
                     )}
 
