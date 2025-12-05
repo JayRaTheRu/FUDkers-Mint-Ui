@@ -1222,7 +1222,7 @@ Mint yours at: ${window.location.href}`;
                       }}
                     >
                       Screenshot your FUDker and share this pull with the
-                      Neighborhood 🧱
+                      Neighborhood 👁️
                     </p>
                     <div
                       style={{
