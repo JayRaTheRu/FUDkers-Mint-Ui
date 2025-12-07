@@ -15,7 +15,7 @@ import {
   publicKey,
   generateSigner,
   transactionBuilder,
-  some, // 👈 NEW: needed for candy guard mintArgs
+  some, // 👈 Needed for candy guard mintArgs
 } from "@metaplex-foundation/umi";
 
 import {
@@ -50,6 +50,11 @@ import showcase from "./assets/fudkers-showcase.gif";
 import pack from "./assets/pack.png";
 import jayra from "./assets/jayra.png";
 import fudkerCoin from "./assets/fudker-coin.png";
+
+// 👉 SPL Token program ID (hard-coded instead of importing @solana/spl-token)
+const TOKEN_PROGRAM_ID = new PublicKey(
+  "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+);
 
 // Desired FUDker order (0–50) – MUST match file basenames exactly
 const FUDKER_ORDER = [
@@ -113,15 +118,16 @@ const FUDKER_PFPS = FUDKER_ORDER.map((name) => ({
   pngSrc: `/pfps/${name}.png`,
 }));
 
-// 👉 Creator / SOL payment destination (must match candy guard solPayment destination)
-// CM #5 Guard + Tip destination: 6WbBX58cHCcuhR6BPpCDXm5eRULuxwxes7jwEodTWtHc
+// 👉 Primary mint revenue destination (MUST match Candy Guard solPayment destination)
+// CM #5 Guard destination: Neighborhood OTB wallet
 const CREATOR_WALLET = "6WbBX58cHCcuhR6BPpCDXm5eRULuxwxes7jwEodTWtHc";
+
+// 👉 Separate wallet JUST for tips via "Support JayRa" button
+// 🔁 Replace this string with the wallet you want to receive tips:
+const TIP_WALLET = "ARSndF9JQ6RoMNvDPU6AMCPN6AvPs69Vb3b45dy7mHVx";
 
 // 👉 Site version (bump this every time you deploy / push)
 const SITE_VERSION = "v2.2-mainnet-cm5";
-
-// Local storage key for MAINNET Genesis mint history (CM #5)
-const MINT_HISTORY_STORAGE_KEY = "fudkers_mainnet_cm5_mint_history_v1";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -151,7 +157,7 @@ function App() {
   const [revealOpened, setRevealOpened] = useState(false);
   const [autoRevealWhenReady, setAutoRevealWhenReady] = useState(false);
 
-  // Wallet gallery state (local mint history)
+  // Wallet gallery state (on-chain lookup)
   const [walletLookup, setWalletLookup] = useState("");
   const [walletNfts, setWalletNfts] = useState([]);
   const [walletNftDetails, setWalletNftDetails] = useState({});
@@ -162,7 +168,7 @@ function App() {
   const [tipAmountSol, setTipAmountSol] = useState("");
   const [tipLoading, setTipLoading] = useState(false);
   const [tipError, setTipError] = useState(null);
-  const [tipSuccess, setTipSuccess] = useState(null); // now stores the tx signature
+  const [tipSuccess, setTipSuccess] = useState(null); // stores the tx signature
 
   // Umi client
   const umi = useMemo(() => {
@@ -376,19 +382,6 @@ function App() {
           traits: [],
         });
       }
-
-      // Update local mint history for mainnet Genesis CM
-      try {
-        const ownerStr = wallet.publicKey.toBase58();
-        const raw = localStorage.getItem(MINT_HISTORY_STORAGE_KEY);
-        const data = raw ? JSON.parse(raw) : {};
-        const arr = Array.isArray(data[ownerStr]) ? data[ownerStr] : [];
-        if (!arr.includes(mintedAddress)) arr.push(mintedAddress);
-        data[ownerStr] = arr;
-        localStorage.setItem(MINT_HISTORY_STORAGE_KEY, JSON.stringify(data));
-      } catch (storageErr) {
-        console.warn("Failed to update local mint history:", storageErr);
-      }
     } catch (e) {
       console.error("Mint error:", e);
 
@@ -413,6 +406,7 @@ function App() {
     }
   }
 
+  // 🔎 On-chain "Find your FUDkers" lookup
   async function handleWalletLookup() {
     const addr = walletLookup.trim();
     setWalletLookupError(null);
@@ -427,45 +421,80 @@ function App() {
     try {
       setWalletLookupLoading(true);
 
-      const raw = localStorage.getItem(MINT_HISTORY_STORAGE_KEY);
-      if (!raw) {
-        console.log("No mint history in localStorage yet.");
-        setWalletNfts([]);
+      // Validate address
+      let ownerPubkey;
+      try {
+        ownerPubkey = new PublicKey(addr);
+      } catch (e) {
+        setWalletLookupError("That doesn't look like a valid Solana address.");
         return;
       }
 
-      const data = JSON.parse(raw);
-      const owned = Array.isArray(data[addr]) ? data[addr] : [];
-      console.log("Lookup for wallet", addr, "found mints:", owned);
-      setWalletNfts(owned);
+      const connection = new Connection(RPC_ENDPOINT, "confirmed");
 
+      // 1) Get all SPL token accounts for this wallet
+      const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
+        ownerPubkey,
+        { programId: TOKEN_PROGRAM_ID }
+      );
+
+      const candidateMints = [];
+
+      for (const { account } of tokenAccounts.value) {
+        const info = account.data.parsed.info;
+        const amount = info.tokenAmount;
+
+        // We only care about NFTs: 1 (or more) tokens, 0 decimals
+        if (!amount || amount.uiAmount === 0 || amount.decimals !== 0) {
+          continue;
+        }
+
+        const mintStr = info.mint;
+        candidateMints.push(mintStr);
+      }
+
+      const ownedFudkerMints = [];
       const details = {};
 
-      for (const mint of owned) {
+      // 2) For each mint, check if it's part of the FUDkers Genesis collection
+      for (const mint of candidateMints) {
         try {
-          const meta = await fetchMetadataForMintAddress(mint);
-          details[mint] = meta;
+          const asset = await fetchDigitalAsset(umi, publicKey(mint));
+
+          const isInCollection =
+            asset.metadata?.collection?.verified &&
+            (asset.metadata.collection.key === COLLECTION_MINT_ID ||
+              asset.metadata.collection.key.toString?.() ===
+                COLLECTION_MINT_ID);
+
+          const isFudkerSymbol =
+            asset.metadata?.symbol?.toUpperCase?.() === "FUDKR";
+
+          if (isInCollection || isFudkerSymbol) {
+            ownedFudkerMints.push(mint);
+
+            // Reuse existing helper to load full metadata (image, traits, etc.)
+            const meta = await fetchMetadataForMintAddress(mint);
+            details[mint] = meta;
+          }
         } catch (metaErr) {
-          console.warn(
-            "Failed to fetch metadata for wallet mint:",
-            mint,
-            metaErr
-          );
+          console.warn("Failed to inspect mint for wallet lookup:", mint, metaErr);
         }
       }
 
+      setWalletNfts(ownedFudkerMints);
       setWalletNftDetails(details);
     } catch (e) {
       console.error("Wallet lookup error:", e);
       setWalletLookupError(
-        "Failed to look up local mint history. Check console for details."
+        "Failed to look up on-chain assets for that wallet. Check console for details."
       );
     } finally {
       setWalletLookupLoading(false);
     }
   }
 
-  // ⭐ Creator tip handler
+  // ⭐ Creator tip handler (uses TIP_WALLET, separate from Candy Guard destination)
   async function handleSupportJayRa() {
     setTipError(null);
     setTipSuccess(null);
@@ -494,7 +523,9 @@ function App() {
 
       const connection = new Connection(RPC_ENDPOINT, "confirmed");
       const fromPubkey = wallet.publicKey;
-      const toPubkey = new PublicKey(CREATOR_WALLET);
+
+      // 👉 Tips go to the dedicated tip wallet
+      const toPubkey = new PublicKey(TIP_WALLET);
 
       const lamports = Math.round(parsed * 1e9);
 
@@ -785,16 +816,13 @@ Mint yours at: ${window.location.href}`;
                   }}
                 >
                   <p style={{ margin: 0 }}>
-                    Items available:{" "}
-                    <strong>{itemsAvailable ?? "—"}</strong>
+                    Items available: <strong>{itemsAvailable ?? "—"}</strong>
                   </p>
                   <p style={{ margin: 0 }}>
-                    Items minted:{" "}
-                    <strong>{itemsRedeemed ?? "—"}</strong>
+                    Items minted: <strong>{itemsRedeemed ?? "—"}</strong>
                   </p>
                   <p style={{ margin: 0 }}>
-                    Items remaining:{" "}
-                    <strong>{itemsRemaining ?? "—"}</strong>
+                    Items remaining: <strong>{itemsRemaining ?? "—"}</strong>
                   </p>
                 </div>
               )}
@@ -1344,8 +1372,8 @@ Mint yours at: ${window.location.href}`;
               marginBottom: "0.5rem",
             }}
           >
-            Paste any Solana wallet address to see which FUDkers this browser has
-            watched mint to that wallet from this Genesis Candy Machine.
+            Paste any Solana wallet address to see which FUDkers from this Genesis
+            collection are currently held in that wallet (on-chain lookup).
           </p>
           <p
             style={{
@@ -1354,9 +1382,9 @@ Mint yours at: ${window.location.href}`;
               marginBottom: "0.75rem",
             }}
           >
-            This tool tracks mints that happened from this browser / device. If
-            you minted on another setup, your FUDkers are still on-chain in your
-            wallet — they just won&apos;t show up in this local history.
+            This checks live on-chain token balances for that wallet and filters for
+            FUDkers in this collection. If you&apos;ve transferred your FUDkers out,
+            they won&apos;t show here anymore.
           </p>
 
           <div
@@ -1455,8 +1483,8 @@ Mint yours at: ${window.location.href}`;
                     margin: 0,
                   }}
                 >
-                  No FUDkers in this browser&apos;s history for that wallet yet —
-                  or they were minted on a different device/browser.
+                  No FUDkers from this Genesis collection found in that wallet
+                  (based on current on-chain token balances).
                 </p>
               </div>
             )}

@@ -1,4 +1,11 @@
 // src/main.jsx
+import { Buffer } from "buffer";
+
+// Make Buffer available globally for any libs that expect it
+if (!globalThis.Buffer) {
+  globalThis.Buffer = Buffer;
+}
+
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
@@ -13,10 +20,6 @@ import "@solana/wallet-adapter-react-ui/styles.css";
 
 // 🔁 Use the SAME config as Umi / Candy Machine
 import { RPC_ENDPOINT, NETWORK_LABEL } from "./chainConfig.js";
-
-// We no longer manually import Buffer or set window.Buffer / window.global here.
-// Vite was warning because of those Node-style shims, and Phantom already works
-// through the Wallet Standard integration.
 
 const endpoint = RPC_ENDPOINT;
 
