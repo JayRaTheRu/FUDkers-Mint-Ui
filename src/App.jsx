@@ -14,8 +14,8 @@ import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
 import {
   publicKey,
   generateSigner,
-  some,
   transactionBuilder,
+  some, // 👈 NEW: needed for candy guard mintArgs
 } from "@metaplex-foundation/umi";
 
 import {
@@ -29,8 +29,8 @@ import {
   mplTokenMetadata,
   fetchDigitalAsset,
 } from "@metaplex-foundation/mpl-token-metadata";
-import { setComputeUnitLimit } from "@metaplex-foundation/mpl-toolbox";
 import { walletAdapterIdentity } from "@metaplex-foundation/umi-signer-wallet-adapters";
+import { setComputeUnitLimit } from "@metaplex-foundation/mpl-toolbox";
 
 import {
   ENV,
@@ -109,18 +109,19 @@ const FUDKER_ORDER = [
 // FUDker PFPs: use files from public/pfps (WEBP for display, PNG for download)
 const FUDKER_PFPS = FUDKER_ORDER.map((name) => ({
   name,
-  src: `/pfps/${name}.webp`, // transparent WEBP in public/pfps
-  pngSrc: `/pfps/${name}.png`, // full-res PNG in public/pfps
+  src: `/pfps/${name}.webp`,
+  pngSrc: `/pfps/${name}.png`,
 }));
 
 // 👉 Creator / SOL payment destination (must match candy guard solPayment destination)
+// CM #5 Guard + Tip destination: 6WbBX58cHCcuhR6BPpCDXm5eRULuxwxes7jwEodTWtHc
 const CREATOR_WALLET = "6WbBX58cHCcuhR6BPpCDXm5eRULuxwxes7jwEodTWtHc";
 
 // 👉 Site version (bump this every time you deploy / push)
-const SITE_VERSION = "v1.6";
+const SITE_VERSION = "v2.2-mainnet-cm5";
 
-// Local storage key for CM #2 mint history
-const MINT_HISTORY_STORAGE_KEY = "fudkers_cm2_mint_history_v1";
+// Local storage key for MAINNET Genesis mint history (CM #5)
+const MINT_HISTORY_STORAGE_KEY = "fudkers_mainnet_cm5_mint_history_v1";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -150,7 +151,7 @@ function App() {
   const [revealOpened, setRevealOpened] = useState(false);
   const [autoRevealWhenReady, setAutoRevealWhenReady] = useState(false);
 
-  // Wallet gallery state (for CM #2 – local history)
+  // Wallet gallery state (local mint history)
   const [walletLookup, setWalletLookup] = useState("");
   const [walletNfts, setWalletNfts] = useState([]);
   const [walletNftDetails, setWalletNftDetails] = useState({});
@@ -161,13 +162,11 @@ function App() {
   const [tipAmountSol, setTipAmountSol] = useState("");
   const [tipLoading, setTipLoading] = useState(false);
   const [tipError, setTipError] = useState(null);
-  const [tipSuccess, setTipSuccess] = useState(null);
+  const [tipSuccess, setTipSuccess] = useState(null); // now stores the tx signature
 
   // Umi client
   const umi = useMemo(() => {
-    return createUmi(RPC_ENDPOINT)
-      .use(mplCandyMachine())
-      .use(mplTokenMetadata());
+    return createUmi(RPC_ENDPOINT).use(mplCandyMachine()).use(mplTokenMetadata());
   }, []);
 
   useEffect(() => {
@@ -195,19 +194,14 @@ function App() {
           json = await res.json();
         }
       } catch (offchainErr) {
-        console.warn(
-          `Off-chain metadata fetch error for ${uri}:`,
-          offchainErr
-        );
+        console.warn(`Off-chain metadata fetch error for ${uri}:`, offchainErr);
       }
     }
 
     const name = (json && json.name) || asset.metadata.name || "FUDker";
 
     const imageUrl =
-      (json &&
-        (json.image || json.imageUrl || json.imageURL || null)) ||
-      null;
+      (json && (json.image || json.imageUrl || json.imageURL || null)) || null;
 
     const animationUrl =
       (json &&
@@ -231,8 +225,7 @@ function App() {
         const meta = await fetchMetadataForMintAddress(mintAddress);
 
         const hasMedia = !!(meta && (meta.animationUrl || meta.imageUrl));
-        const hasTraits =
-          Array.isArray(meta?.traits) && meta.traits.length > 0;
+        const hasTraits = Array.isArray(meta?.traits) && meta.traits.length > 0;
 
         if (hasMedia || hasTraits || attempt === 5) {
           return meta;
@@ -267,19 +260,22 @@ function App() {
     }
   }, [lastMintMetadata, autoRevealWhenReady, revealOpened]);
 
+  // Load Candy Machine + Guard from chainConfig (mainnet or devnet)
   useEffect(() => {
     const loadCandyMachine = async () => {
       try {
         setLoading(true);
         setError(null);
 
+        // ✅ Use the IDs from chainConfig, not cm.mintAuthority
         const cmPubkey = publicKey(CANDY_MACHINE_ID);
         const cm = await fetchCandyMachine(umi, cmPubkey);
         setCandyMachine(cm);
 
         let guard = null;
         try {
-          guard = await safeFetchCandyGuard(umi, cm.mintAuthority);
+          const guardPubkey = publicKey(CANDY_GUARD_ID);
+          guard = await safeFetchCandyGuard(umi, guardPubkey);
         } catch (inner) {
           console.warn("No candy guard found or unable to fetch.", inner);
         }
@@ -307,7 +303,7 @@ function App() {
       return;
     }
     if (!candyGuard) {
-      alert("Candy Guard not loaded – cannot mint.");
+      alert("Candy Guard not loaded – please wait or refresh.");
       return;
     }
 
@@ -321,6 +317,17 @@ function App() {
 
       const mintSigner = generateSigner(umi);
       const ownerPk = publicKey(wallet.publicKey.toBase58());
+
+      // 🔍 Debug key accounts before building
+      console.log("FUDkers mint debug:", {
+        cmPk: candyMachine?.publicKey?.toString?.(),
+        guardPk: candyGuard?.publicKey?.toString?.(),
+        collectionMintId: COLLECTION_MINT_ID,
+        collectionMintPk: publicKey(COLLECTION_MINT_ID).toString(),
+        identityPk: umi.identity?.publicKey?.toString?.(),
+        ownerPk: ownerPk?.toString?.(),
+        tokenStandard: candyMachine?.tokenStandard,
+      });
 
       const builder = transactionBuilder()
         .add(
@@ -340,12 +347,11 @@ function App() {
             payer: umi.identity,
             nftOwner: ownerPk,
             tokenStandard: candyMachine.tokenStandard,
+
+            // 👇 IMPORTANT: satisfy the default solPayment guard
             mintArgs: {
               solPayment: some({
                 destination: publicKey(CREATOR_WALLET),
-              }),
-              mintLimit: some({
-                id: 1,
               }),
             },
           })
@@ -371,6 +377,7 @@ function App() {
         });
       }
 
+      // Update local mint history for mainnet Genesis CM
       try {
         const ownerStr = wallet.publicKey.toBase58();
         const raw = localStorage.getItem(MINT_HISTORY_STORAGE_KEY);
@@ -378,10 +385,7 @@ function App() {
         const arr = Array.isArray(data[ownerStr]) ? data[ownerStr] : [];
         if (!arr.includes(mintedAddress)) arr.push(mintedAddress);
         data[ownerStr] = arr;
-        localStorage.setItem(
-          MINT_HISTORY_STORAGE_KEY,
-          JSON.stringify(data)
-        );
+        localStorage.setItem(MINT_HISTORY_STORAGE_KEY, JSON.stringify(data));
       } catch (storageErr) {
         console.warn("Failed to update local mint history:", storageErr);
       }
@@ -477,6 +481,14 @@ function App() {
       return;
     }
 
+    // 🔒 Safety hard-cap for fat-finger mistakes
+    if (parsed > 100) {
+      setTipError(
+        "For safety, tips are capped at 100 SOL. If you meant to send more, split it into smaller tips (max 100 SOL each)."
+      );
+      return;
+    }
+
     try {
       setTipLoading(true);
 
@@ -501,7 +513,8 @@ function App() {
       const signature = await wallet.sendTransaction(tx, connection);
       await connection.confirmTransaction(signature, "confirmed");
 
-      setTipSuccess(`Tip sent! Tx: ${signature}`);
+      // store just the signature, we’ll render the text + link in JSX
+      setTipSuccess(signature);
     } catch (err) {
       console.error("Tip transaction failed:", err);
       setTipError(
@@ -548,8 +561,7 @@ Mint yours at: ${window.location.href}`;
     lastMintMetadata &&
     (lastMintMetadata.animationUrl ||
       lastMintMetadata.imageUrl ||
-      (lastMintMetadata.traits &&
-        lastMintMetadata.traits.length > 0));
+      (lastMintMetadata.traits && lastMintMetadata.traits.length > 0));
 
   return (
     <div
@@ -595,7 +607,7 @@ Mint yours at: ${window.location.href}`;
             />
             <div>
               <h1 style={{ fontSize: "1.5rem", margin: 0 }}>
-                1of1 FUDkers Random Mint
+                FUDkers Genesis • Random Mint
               </h1>
               <p
                 style={{
@@ -620,9 +632,7 @@ Mint yours at: ${window.location.href}`;
                   rel="noreferrer"
                   style={{ color: "#7de0ff", textDecoration: "none" }}
                 >
-                  <code style={{ fontSize: "0.7rem" }}>
-                    {COLLECTION_MINT_ID}
-                  </code>
+                  <code style={{ fontSize: "0.7rem" }}>{COLLECTION_MINT_ID}</code>
                 </a>
               </p>
 
@@ -745,12 +755,12 @@ Mint yours at: ${window.location.href}`;
               }}
             >
               <h2 style={{ marginTop: 0, marginBottom: "0.75rem" }}>
-                DEVNET Candy Machine #2
+                FUDkers Genesis • Mainnet Mint
               </h2>
 
               {loading && (
                 <p style={{ fontSize: "0.85rem", opacity: 0.8 }}>
-                  Loading CM…
+                  Loading Candy Machine…
                 </p>
               )}
               {error && (
@@ -799,8 +809,8 @@ Mint yours at: ${window.location.href}`;
                     opacity: 0.85,
                   }}
                 >
-                  Price: <strong>{MINT_PRICE_SOL} SOL</strong> · Mint limit:{" "}
-                  <strong>2 per wallet</strong>
+                  Price: <strong>{MINT_PRICE_SOL} SOL</strong> · Enforced
+                  on-chain by Candy Guard (no UI tricks)
                 </p>
               )}
 
@@ -1182,9 +1192,10 @@ Mint yours at: ${window.location.href}`;
                             onClick={async () => {
                               if (!lastMintAddress) return;
                               try {
-                                const fresh = await loadMintMetadataWithRetry(
-                                  lastMintAddress
-                                );
+                                const fresh =
+                                  await loadMintMetadataWithRetry(
+                                    lastMintAddress
+                                  );
                                 setLastMintMetadata(fresh);
                               } catch (err) {
                                 console.warn(
@@ -1333,8 +1344,8 @@ Mint yours at: ${window.location.href}`;
               marginBottom: "0.5rem",
             }}
           >
-            Paste any Solana wallet address to see which CM #2 FUDkers this
-            browser has watched mint to that wallet (devnet rehearsal only).
+            Paste any Solana wallet address to see which FUDkers this browser has
+            watched mint to that wallet from this Genesis Candy Machine.
           </p>
           <p
             style={{
@@ -1444,9 +1455,8 @@ Mint yours at: ${window.location.href}`;
                     margin: 0,
                   }}
                 >
-                  No CM #2 FUDkers in this browser&apos;s history for that
-                  wallet yet — or they were minted on a different
-                  device/browser.
+                  No FUDkers in this browser&apos;s history for that wallet yet —
+                  or they were minted on a different device/browser.
                 </p>
               </div>
             )}
@@ -1490,8 +1500,7 @@ Mint yours at: ${window.location.href}`;
                   );
                 }
 
-                const hasTraits =
-                  details.traits && details.traits.length > 0;
+                const hasTraits = details.traits && details.traits.length > 0;
 
                 return (
                   <div
@@ -1523,7 +1532,7 @@ Mint yours at: ${window.location.href}`;
                           opacity: 0.7,
                         }}
                       >
-                        CM #2 · Devnet rehearsal
+                        Genesis • Mainnet
                       </p>
                     </div>
 
@@ -1605,21 +1614,21 @@ Mint yours at: ${window.location.href}`;
                                       marginBottom: "2px",
                                     }}
                                   >
-                                      {trait.trait_type}
-                                    </div>
-                                    <div
-                                      style={{
-                                        fontSize: "14px",
-                                        color: "#fff",
-                                      }}
-                                    >
-                                      {trait.value}
-                                    </div>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
+                                    {trait.trait_type}
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: "14px",
+                                      color: "#fff",
+                                    }}
+                                  >
+                                    {trait.value}
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -1936,7 +1945,18 @@ Mint yours at: ${window.location.href}`;
                     wordBreak: "break-all",
                   }}
                 >
-                  {tipSuccess}
+                  Tip sent!{" "}
+                  <a
+                    href={`https://solscan.io/tx/${tipSuccess}${clusterQuery}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      color: "#7de0ff",
+                      textDecoration: "underline",
+                    }}
+                  >
+                    View on Solscan ↗
+                  </a>
                 </p>
               )}
             </div>
@@ -1971,7 +1991,8 @@ Mint yours at: ${window.location.href}`;
               opacity: 0.7,
             }}
           >
-            Site version <code>{SITE_VERSION}</code> · Devnet CM #2 rehearsal
+            Site version <code>{SITE_VERSION}</code> · FUDkers Genesis • Mainnet
+            Candy Machine
           </div>
           <div
             style={{

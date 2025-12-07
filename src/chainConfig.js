@@ -1,38 +1,45 @@
 // src/chainConfig.js
 
-// 🔁 For now we test on devnet
-export const ENV = "devnet"; // later you'll flip this to "mainnet"
+export const ENV = "mainnet"; // we are on mainnet
 
-// We’ll use Solscan for all on-chain links (kept for future use if needed)
 const SOLSCAN_BASE = "https://solscan.io";
 
-const DEVNET_CONFIG = {
-  // ✅ Use Solana public devnet RPC for now
-  RPC_ENDPOINT: "https://api.devnet.solana.com",
+const FALLBACK_MAINNET_RPC =
+  "https://mainnet.helius-rpc.com/?api-key=af2e60ed-0422-4853-bd1c-7e6c20cf66b6";
 
-  // ✅ CM #2 DEVNET
+function resolveRpcEndpoint() {
+  const envEndpoint = import.meta.env.VITE_RPC_ENDPOINT;
+
+  if (
+    typeof envEndpoint === "string" &&
+    envEndpoint.trim().toLowerCase().startsWith("http")
+  ) {
+    return envEndpoint.trim();
+  }
+
+  return FALLBACK_MAINNET_RPC;
+}
+
+const DEVNET_CONFIG = {
+  RPC_ENDPOINT: "https://api.devnet.solana.com",
   CANDY_MACHINE_ID: "9aw2qvPDzZmXbwiGY61k355ngcg5mv1pqVtncMUi3osw",
   CANDY_GUARD_ID: "HWdNG5XSZzkyih6X68cZkH7PHUR5mEYjWNBb3NpsSmc9",
   COLLECTION_MINT_ID: "5cBLXmfyUEptGs79Xcb9jvoCjHRByLZ7rs7xSpf8nF9",
-
-  // Explorer (optional)
   EXPLORER_BASE_URL: SOLSCAN_BASE,
   EXPLORER_CLUSTER_SUFFIX: "?cluster=devnet",
 };
 
 const MAINNET_CONFIG = {
-  // For later: we’ll swap this for your Cloudflare/mainnet RPC
-  RPC_ENDPOINT:
-    import.meta.env.VITE_RPC_ENDPOINT ||
-    "https://api.mainnet-beta.solana.com",
+  // 🔒 Uses VITE_RPC_ENDPOINT if valid, else falls back to Helius
+  RPC_ENDPOINT: resolveRpcEndpoint(),
 
-  // Placeholder mainnet values for now
-  CANDY_MACHINE_ID: "2Qt4wgrU2nfFcxKoyhyUJzrCGeDVtpeNZsREG7DfR1eX",
-  CANDY_GUARD_ID: "H7GN9ghtuzezF3k3nbf6xqFJhzVzs8oZKUnac9B2jtbt",
-  COLLECTION_MINT_ID: "Bj9KkjNbps48cFyYjFigcb4g2jpA7y7SbFEnRw79MGJR",
+  // ✅ MAINNET Candy Machine #5 + Guard + Collection
+  CANDY_MACHINE_ID: "EFrJRNxg14rRjezeEaVvVbvach5cwX3d2kfBtjdyFh9d",
+  CANDY_GUARD_ID: "26LNbWTKYj1F9x8Zuss91qAzimVFv8M4hqutAjaXbivQ",
+  COLLECTION_MINT_ID: "Eb7mEMNK4hNQVTAkCH7nbjkiX7JdstSFS9WcjGqiLsgA",
 
   EXPLORER_BASE_URL: SOLSCAN_BASE,
-  EXPLORER_CLUSTER_SUFFIX: "", // mainnet is default
+  EXPLORER_CLUSTER_SUFFIX: "", // mainnet
 };
 
 const ACTIVE_CONFIG = ENV === "devnet" ? DEVNET_CONFIG : MAINNET_CONFIG;
@@ -44,7 +51,6 @@ export const COLLECTION_MINT_ID = ACTIVE_CONFIG.COLLECTION_MINT_ID;
 export const EXPLORER_BASE_URL = ACTIVE_CONFIG.EXPLORER_BASE_URL;
 export const EXPLORER_CLUSTER_SUFFIX = ACTIVE_CONFIG.EXPLORER_CLUSTER_SUFFIX;
 
-// UI label
 export const NETWORK_LABEL =
   ENV === "devnet"
     ? "Devnet"
@@ -52,5 +58,9 @@ export const NETWORK_LABEL =
     ? "Mainnet"
     : "Custom RPC";
 
-// Mint price (must match guard solPayment lamports: 1 SOL)
+// Must match guard: ◎1
 export const MINT_PRICE_SOL = 1;
+
+// This must match the `destination` shown in `sugar guard show`
+export const SOL_PAYMENT_DESTINATION =
+  "6WbBX58cHCcuhR6BPpCDXm5eRULuxwxes7jwEodTWtHc";
